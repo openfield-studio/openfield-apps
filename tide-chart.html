@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-title" content="潮見表">
 <meta name="theme-color" content="#071420">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>潮見表 — 全国タイドグラフ</title>
 <style>
 :root{
@@ -54,11 +57,12 @@ select{
 .moon{font-size:11px;color:var(--dim);display:flex;align-items:center;justify-content:flex-end;gap:6px}
 #moonCv{width:20px;height:20px;display:block}
 .timebar{
-  display:flex;justify-content:space-between;align-items:center;
+  display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;
   border-top:1px solid var(--line);margin-top:10px;padding-top:8px;
 }
-.timebar .dt{font-size:14px;font-weight:600}
-.timebar .dt .past{color:var(--amber)} .timebar .dt .future{color:var(--cyan)}
+.timebar .dt{font-size:21px;font-weight:600}
+.timebar .dt .past{color:var(--amber);font-size:13px} .timebar .dt .future{color:var(--cyan);font-size:13px}
+.timebar .dt .sat{color:#4db4f0} .timebar .dt .sun{color:#ff6b6b}
 #nowBtn{
   background:none;border:1px solid var(--line);border-radius:8px;color:var(--cyan);
   font-size:12px;padding:5px 12px;cursor:pointer;
@@ -69,6 +73,8 @@ select{
   padding:10px 6px 4px;margin-bottom:6px;
 }
 canvas{width:100%;display:block}
+#cv{touch-action:pan-y;cursor:grab}
+#cv:active{cursor:grabbing}
 .sliderbox{margin:10px 2px 16px}
 input[type=range]{-webkit-appearance:none;width:100%;height:34px;background:transparent;outline:none}
 input[type=range]::-webkit-slider-runnable-track{
@@ -1092,8 +1098,32 @@ $('lineCm').addEventListener('input',()=>{
 /* ===== グラフ範囲(描画用) ===== */
 const cv=$('cv');
 let graphStart,graphEnd,crossDots=[];
-/* 基準線との交点ドットをタップで時刻ジャンプ(ドット以外は反応しない) */
+
+/* グラフ横スワイプで時刻スクラブ: グラフが指に追従(右ドラッグ=過去/左=未来) */
+let dragOn=false, dragMoved=false, dragX0=0, dragOff0=0, dragMpp=1;
+cv.addEventListener('pointerdown',e=>{
+  dragOn=true; dragMoved=false;
+  dragX0=e.clientX; dragOff0=offsetMin;
+  dragMpp=1440/((cv.clientWidth||520)-46);  // 表示窓24h ÷ プロット幅(px)
+  try{cv.setPointerCapture(e.pointerId);}catch(_){}
+});
+cv.addEventListener('pointermove',e=>{
+  if(!dragOn)return;
+  const dx=e.clientX-dragX0;
+  if(!dragMoved&&Math.abs(dx)>5)dragMoved=true;
+  if(dragMoved){offsetMin=dragOff0-dx*dragMpp;render();}
+});
+function endDrag(){
+  if(!dragOn)return;
+  dragOn=false;
+  if(dragMoved)setOffset(offsetMin);  // スライダー基準を同期
+}
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',endDrag);
+
+/* 基準線との交点ドットをタップで時刻ジャンプ(ドラッグ時は無効・ドット以外は反応しない) */
 cv.addEventListener('click',e=>{
+  if(dragMoved){dragMoved=false;return;}
   if(!crossDots.length)return;
   const r=cv.getBoundingClientRect();
   const x=e.clientX-r.left, y=e.clientY-r.top;
@@ -1109,8 +1139,10 @@ cv.addEventListener('click',e=>{
 function fmt2(n){return String(n).padStart(2,'0');}
 function fmtTime(d){return fmt2(d.getHours())+':'+fmt2(d.getMinutes());}
 function fmtDT(d){
-  const w='日月火水木金土'[d.getDay()];
-  return (d.getMonth()+1)+'/'+d.getDate()+'('+w+') '+fmtTime(d);
+  const wd=d.getDay();
+  const w='日月火水木金土'[wd];
+  const wc=wd===0?' class="sun"':wd===6?' class="sat"':'';
+  return (d.getMonth()+1)+'/'+d.getDate()+'(<span'+wc+'>'+w+'</span>) '+fmtTime(d);
 }
 function findHiLo(p,dayStart){
   const his=[],los=[];

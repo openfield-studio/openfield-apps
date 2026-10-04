@@ -16,6 +16,18 @@
 :root{
   --bg:#071420; --panel:#0d2233; --panel2:#11293d; --line:#1e3d55;
   --text:#d7e7f2; --dim:#7da0b8; --cyan:#43d6c9; --amber:#f5b54a; --water:#0e4d63;
+  --waterLine:#1d5a6e; --rose:#f06d7e; --roseLine:#5a2733; --sat:#4db4f0; --sun:#ff6b6b;
+  --gridMinor:#152e42; --gridMajor:#2a5273; --axisDim:#5a7d94; --axisHi:#9cc2da;
+  --land:#42583c; --coastLine:#3a6a8f; --otherDot:#5a86a0; --mapLabelOther:#a8cbdd;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#f4f7f9; --panel:#ffffff; --panel2:#e7edf1; --line:#c4d0d8;
+  --text:#0b1f2c; --dim:#4a5f6c; --cyan:#067a70; --amber:#a35d00; --water:#d7f1ee;
+  --waterLine:#8fd4c8; --rose:#c23c50; --roseLine:#e3aab3; --sat:#0e6fb0; --sun:#c62828;
+  --gridMinor:#d3dde3; --gridMajor:#8ea3af; --axisDim:#4a5f6c; --axisHi:#1c2c35;
+  --land:#c3d6ac; --coastLine:#5c7a63; --otherDot:#3f5f70; --mapLabelOther:#33505f;
+  color-scheme:light;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 .msym{width:1.15em;height:1.15em;vertical-align:-.2em;fill:currentColor;flex:none}
@@ -28,14 +40,12 @@ body{
 header{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
 header h1{font-size:17px;font-weight:700;letter-spacing:.06em}
 header .sub{font-size:13px;color:var(--dim)}
-.modeTabs{display:flex;gap:8px;margin-bottom:12px}
-.modeTab{
-  flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;
-  color:var(--dim);font-size:14px;font-weight:600;padding:9px 0;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;gap:6px;
+#themeBtn{
+  margin-left:auto;align-self:center;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;color:var(--text);font-size:13px;font-weight:600;padding:7px 12px;
+  cursor:pointer;flex:none;
 }
-.modeTab.active{background:var(--water);color:var(--cyan);border-color:#1d5a6e}
-.betaTag{font-size:10px;font-weight:600;color:var(--amber);background:rgba(245,181,74,.15);border-radius:6px;padding:1px 6px}
+#themeBtn:active{background:var(--panel2)}
 .selrow{display:flex;gap:8px;margin-bottom:14px}
 select{
   flex:1;min-width:0;appearance:none;
@@ -62,7 +72,7 @@ select{
   display:inline-block;background:var(--water);border:1px solid var(--line);
   border-radius:28px;padding:10px 28px;font-size:32px;font-weight:700;letter-spacing:.05em;margin-bottom:10px;
 }
-.badge.oo{background:#10384a;color:var(--cyan);border-color:#1d5a6e}
+.badge.oo{background:var(--water);color:var(--cyan);border-color:var(--waterLine)}
 .moon{font-size:20px;color:var(--dim);display:flex;align-items:center;justify-content:flex-end;gap:8px}
 #moonCv{width:36px;height:36px;display:block}
 .timebar{
@@ -71,7 +81,7 @@ select{
 }
 .timebar .dt{font-size:21px;font-weight:600}
 .timebar .dt .past{color:var(--amber);font-size:15px} .timebar .dt .future{color:var(--cyan);font-size:15px}
-.timebar .dt .sat{color:#4db4f0} .timebar .dt .sun{color:#ff6b6b}
+.timebar .dt .sat{color:var(--sat)} .timebar .dt .sun{color:var(--sun)}
 #nowBtn{
   background:var(--cyan);border:1px solid var(--cyan);border-radius:10px;color:#06232a;
   font-weight:700;font-size:16px;padding:12px 22px;cursor:pointer;
@@ -128,8 +138,8 @@ canvas{width:100%;display:block}
   color:var(--amber);font-size:20px;padding:0 13px;cursor:pointer;flex:none;line-height:1;
 }
 #delBtn{
-  display:none;background:none;border:1px solid #5a2733;border-radius:8px;
-  color:var(--rose,#f06d7e);font-size:13px;padding:5px 12px;cursor:pointer;margin-left:8px;
+  display:none;background:none;border:1px solid var(--roseLine);border-radius:8px;
+  color:var(--rose);font-size:13px;padding:5px 12px;cursor:pointer;margin-left:8px;
 }
 .modal-bg{
   display:none;position:fixed;inset:0;background:rgba(3,10,16,.75);z-index:10;
@@ -152,9 +162,9 @@ canvas{width:100%;display:block}
 .modal .btns button{
   flex:1;border-radius:10px;font-size:15px;padding:11px;cursor:pointer;border:1px solid var(--line);
 }
-#mSave,#alarmSave{background:var(--water);color:var(--cyan);border-color:#1d5a6e;font-weight:600}
+#mSave,#alarmSave{background:var(--water);color:var(--cyan);border-color:var(--waterLine);font-weight:600}
 #mCancel,#alarmCancel{background:none;color:var(--dim)}
-#alarmDelete{background:none;color:#f06d7e;border-color:#5a2733;display:none}
+#alarmDelete{background:none;color:var(--rose);border-color:var(--roseLine);display:none}
 .alarmbox{display:none;flex-direction:column;gap:6px;margin:0 2px 16px}
 .alarmHead{font-size:13px;color:var(--dim);letter-spacing:.08em;display:flex;align-items:center;gap:6px}
 .alarmItem{display:flex;justify-content:space-between;align-items:center;
@@ -163,7 +173,7 @@ canvas{width:100%;display:block}
 .alarmItem .dot{width:11px;height:11px;border-radius:50%;background:var(--amber);flex:none;
   box-shadow:0 0 0 3px rgba(245,181,74,.22)}
 .alarmItem .b{color:var(--dim);font-size:13px}
-.alarmItem .x{color:#f06d7e;font-size:13px;border:1px solid #5a2733;border-radius:7px;
+.alarmItem .x{color:var(--rose);font-size:13px;border:1px solid var(--roseLine);border-radius:7px;
   padding:5px 11px;cursor:pointer;background:none;flex:none}
 .alarmItem .x:active{background:var(--panel2)}
 .alarmNote{font-size:12px;color:var(--dim);padding:0 2px;margin-top:4px}
@@ -180,7 +190,7 @@ canvas{width:100%;display:block}
   width:100%;border-radius:10px;font-size:15px;padding:12px;cursor:pointer;
   border:1px solid var(--line);margin-bottom:10px;
 }
-#paywallBuy{background:var(--water);color:var(--cyan);border-color:#1d5a6e;font-weight:700}
+#paywallBuy{background:var(--water);color:var(--cyan);border-color:var(--waterLine);font-weight:700}
 #paywallRestore{background:none;color:var(--dim)}
 #paywallClose{background:none;color:var(--dim);border:none;margin-bottom:0}
 .lineLock{display:none;cursor:pointer;color:var(--amber);margin-left:4px}
@@ -190,19 +200,14 @@ canvas{width:100%;display:block}
 <div class="paywall" id="paywall">
   <div class="paywallBox">
     <h2>基準潮位ラインは購読が必要です</h2>
-    <p>基準潮位ライン（cm指定でのライン表示・通過アラーム）は60日間の無料期間終了後、月額サブスクリプションでご利用いただけます。潮位表・潮流表など他の機能は引き続き無料でお使いいただけます。</p>
+    <p>基準潮位ライン（cm指定でのライン表示・通過アラーム）は60日間の無料期間終了後、月額サブスクリプションでご利用いただけます。潮位表など他の機能は引き続き無料でお使いいただけます。</p>
     <button id="paywallBuy">購読する</button>
     <button id="paywallRestore">購入を復元</button>
     <button id="paywallClose">あとで</button>
   </div>
 </div>
-<header><h1>作業潮位表</h1><span class="sub">全国239検潮所・気象庁調和定数</span></header>
+<header><h1>作業潮位表</h1><span class="sub">全国239検潮所・気象庁調和定数</span><button id="themeBtn" title="明るい表示に切替"></button></header>
 <div class="trialBanner" id="trialBanner"></div>
-
-<div class="modeTabs">
-  <button class="modeTab active" id="modeTideBtn">潮位</button>
-  <button class="modeTab" id="modeCurrentBtn">潮流<span class="betaTag">試験提供</span></button>
-</div>
 
 <div id="tideSelectors">
 <div class="selrow">
@@ -998,19 +1003,13 @@ function drawMoon(age){
 /* ===== 状態 ===== */
 let port=null, offsetMin=0, baseNow=new Date();
 
-/* ===== 潮流（試験提供・来島海峡のみ）=====
-   気象庁の潮位調和定数と同じ計算式(tideHeight)を、海上保安庁公表の
-   来島海峡・年間潮流表(2027年、転流/最強流の符号付き実測値)から
-   独自に調和分解して求めた値で流用している。主要4分潮(M2,S2,K1,O1)
-   のみのモデルのため、浅海分潮の影響が強い日は誤差が大きくなる場合がある。 */
-const KURUSHIMA_CURRENT={
-  pref:'瀬戸内海', name:'来島海峡(中水道)', lat:34.1167, lon:133.0, Z0:-0.004,
-  M2:[4.585,130.74], S2:[2.025,198.7], K1:[0.702,290.72], O1:[0.523,244.48],
-  N2:[0.889,94.32], K2:[0.551,204.19], P1:[0.232,287.26]
-};
-let appMode='level'; // 'level'=潮位 / 'current'=潮流
-let savedTidePort=null;
 const $=id=>document.getElementById(id);
+function cssv(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
+function hexA(hex,a){
+  const h=hex.replace('#','');
+  const r=parseInt(h.substring(0,2),16),g=parseInt(h.substring(2,4),16),b=parseInt(h.substring(4,6),16);
+  return 'rgba('+r+','+g+','+b+','+a+')';
+}
 const STATIONS=D.map(buildPort);
 
 /* ===== マイ地点 (改正数方式: 基準港 + 潮時差/潮高比/潮位差) ===== */
@@ -1321,6 +1320,11 @@ function drawGraph(cur,curH){
   const ctx=cv.getContext('2d');
   ctx.scale(dpr,dpr);
   ctx.clearRect(0,0,W,H);
+  const C={
+    gridMinor:cssv('--gridMinor'),gridMajor:cssv('--gridMajor'),axisDim:cssv('--axisDim'),axisHi:cssv('--axisHi'),
+    cyan:cssv('--cyan'),water:cssv('--water'),amber:cssv('--amber'),rose:cssv('--rose'),
+    panel:cssv('--panel'),text:cssv('--text'),bg:cssv('--bg')
+  };
 
   graphStart=new Date(cur.getTime()-6*3600000);
   graphEnd=new Date(cur.getTime()+18*3600000);
@@ -1348,11 +1352,11 @@ function drawGraph(cur,curH){
   for(let t=g0.getTime();t<=graphEnd.getTime();t+=3*3600000){
     const d=new Date(t),x=X(t);
     const midnight=d.getHours()===0;
-    ctx.strokeStyle=midnight?'#2a5273':'#152e42';
+    ctx.strokeStyle=midnight?C.gridMajor:C.gridMinor;
     ctx.lineWidth=midnight?1.5:1;
     ctx.beginPath();ctx.moveTo(x,padT);ctx.lineTo(x,H-padB);ctx.stroke();
     if(d.getHours()%6===0){
-      ctx.fillStyle=midnight?'#9cc2da':'#5a7d94';
+      ctx.fillStyle=midnight?C.axisHi:C.axisDim;
       ctx.fillText(midnight?(d.getMonth()+1)+'/'+d.getDate():fmt2(d.getHours()),x,H-8);
     }
   }
@@ -1361,9 +1365,9 @@ function drawGraph(cur,curH){
   const step=range>400?200:range>200?100:range>80?50:20;
   for(let v=Math.ceil(min/step)*step;v<max;v+=step){
     const y=Y(v);
-    ctx.strokeStyle='#152e42';ctx.lineWidth=1;
+    ctx.strokeStyle=C.gridMinor;ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(W-padR,y);ctx.stroke();
-    ctx.fillStyle='#5a7d94';
+    ctx.fillStyle=C.axisDim;
     ctx.fillText(v,padL-5,y+3);
   }
 
@@ -1373,19 +1377,19 @@ function drawGraph(cur,curH){
   ctx.lineTo(X(graphStart.getTime()),H-padB);
   ctx.closePath();
   const grad=ctx.createLinearGradient(0,padT,0,H-padB);
-  grad.addColorStop(0,'rgba(67,214,201,.30)');
-  grad.addColorStop(1,'rgba(14,77,99,.05)');
+  grad.addColorStop(0,hexA(C.cyan,.30));
+  grad.addColorStop(1,hexA(C.water,.05));
   ctx.fillStyle=grad;ctx.fill();
 
   ctx.beginPath();
   pts.forEach((p,i)=>{const x=X(p.t.getTime()),y=Y(p.v);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
-  ctx.strokeStyle='#43d6c9';ctx.lineWidth=2;ctx.stroke();
+  ctx.strokeStyle=C.cyan;ctx.lineWidth=2;ctx.stroke();
 
   const realNow=new Date();
   if(realNow>=graphStart&&realNow<=graphEnd){
     const x=X(realNow.getTime());
     ctx.setLineDash([3,4]);
-    ctx.strokeStyle='#f5b54a';ctx.lineWidth=1;
+    ctx.strokeStyle=C.amber;ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(x,padT);ctx.lineTo(x,H-padB);ctx.stroke();
     ctx.setLineDash([]);
   }
@@ -1394,11 +1398,11 @@ function drawGraph(cur,curH){
   if(lineV!==null){
     const ly=Y(lineV);
     ctx.setLineDash([6,4]);
-    ctx.strokeStyle='#f06d7e';ctx.lineWidth=1.5;
+    ctx.strokeStyle=C.rose;ctx.lineWidth=1.5;
     ctx.beginPath();ctx.moveTo(padL,ly);ctx.lineTo(W-padR,ly);ctx.stroke();
     ctx.setLineDash([]);
     ctx.textAlign='left';
-    ctx.fillStyle='#f06d7e';
+    ctx.fillStyle=C.rose;
     ctx.fillText(lineV+'cm',padL+4,ly-5);
 
     // ラインとの交点: 表示範囲の前後18hまで探索(画面端をまたぐ区間にも対応)
@@ -1430,14 +1434,14 @@ function drawGraph(cur,curH){
             const al=alarmExists(t,down);
             const here=Math.abs(t-cur.getTime())<90000;  // この交点に移動済み
             ctx.beginPath();ctx.arc(dx,ly,al?5:4,0,Math.PI*2);
-            ctx.fillStyle=al?'#f5b54a':'#f06d7e';ctx.fill();
+            ctx.fillStyle=al?C.amber:C.rose;ctx.fill();
             ctx.beginPath();ctx.arc(dx,ly,al?8:7,0,Math.PI*2);
-            ctx.strokeStyle=al?'rgba(245,181,74,.5)':'rgba(240,109,126,.45)';
+            ctx.strokeStyle=al?hexA(C.amber,.5):hexA(C.rose,.45);
             ctx.lineWidth=1.5;ctx.stroke();
             if(here&&!al){           // 「もう一度タップでアラーム」のヒント
               ctx.setLineDash([2,3]);
               ctx.beginPath();ctx.arc(dx,ly,12,0,Math.PI*2);
-              ctx.strokeStyle='rgba(215,231,242,.7)';ctx.lineWidth=1.5;ctx.stroke();
+              ctx.strokeStyle=hexA(C.text,.7);ctx.lineWidth=1.5;ctx.stroke();
               ctx.setLineDash([]);
             }
             crossDots.push({x:dx,y:ly,t,down});
@@ -1449,12 +1453,12 @@ function drawGraph(cur,curH){
         mx=Math.max(padL+tw/2+4,Math.min(W-padR-tw/2-4,mx));
         const narrow=(X(Math.min(t2,ge))-X(Math.max(t1,gs)))<tw+16;
         const by=narrow?ly-20:ly; // 狭い時はライン上方へ
-        ctx.fillStyle='#0d2233';
+        ctx.fillStyle=C.panel;
         ctx.fillRect(mx-tw/2-5,by-8,tw+10,16);
-        ctx.strokeStyle='#f06d7e';ctx.lineWidth=1;
+        ctx.strokeStyle=C.rose;ctx.lineWidth=1;
         ctx.strokeRect(mx-tw/2-5,by-8,tw+10,16);
         if(narrow){ctx.beginPath();ctx.moveTo(mx,by+8);ctx.lineTo(mx,ly-4);ctx.stroke();}
-        ctx.fillStyle='#f06d7e';
+        ctx.fillStyle=C.rose;
         ctx.fillText(label,mx,by+4);
       }
     }
@@ -1462,12 +1466,12 @@ function drawGraph(cur,curH){
   }
 
   const cx=X(cur.getTime()),cy=Y(curH);
-  ctx.strokeStyle='rgba(215,231,242,.6)';ctx.lineWidth=1;
+  ctx.strokeStyle=hexA(C.text,.6);ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(cx,padT);ctx.lineTo(cx,H-padB);ctx.stroke();
   ctx.beginPath();ctx.arc(cx,cy,6,0,Math.PI*2);
-  ctx.fillStyle='#d7e7f2';ctx.fill();
+  ctx.fillStyle=C.text;ctx.fill();
   ctx.beginPath();ctx.arc(cx,cy,6,0,Math.PI*2);
-  ctx.strokeStyle='#071420';ctx.lineWidth=2;ctx.stroke();
+  ctx.strokeStyle=C.bg;ctx.lineWidth=2;ctx.stroke();
 }
 
 /* ===== 沿岸マップ (選択地方をフレーム表示・選択地点のみ表示) ===== */
@@ -1513,6 +1517,8 @@ function drawMap(){
   const ctx=mapCv.getContext('2d');
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,W,H);
+  const C={land:cssv('--land'),coastLine:cssv('--coastLine'),otherDot:cssv('--otherDot'),
+    mapLabelOther:cssv('--mapLabelOther'),amber:cssv('--amber'),bg:cssv('--bg')};
 
   const [mnLa,mxLa,mnLo,mxLo]=mapBox(mapZoomLevel);
   $('mapZoomIn').disabled=mapZoomLevel>=MAP_ZOOM_SCALES.length-1;
@@ -1526,7 +1532,7 @@ function drawMap(){
   const Y=lat=>offY+(mxLa-lat)*sc;
 
   /* 陸地を塗って海と見分けやすくする */
-  ctx.strokeStyle='#3a6a8f';ctx.lineWidth=1;ctx.lineJoin='round';
+  ctx.strokeStyle=C.coastLine;ctx.lineWidth=1;ctx.lineJoin='round';
   for(let k=0;k<JP_COAST.length;k++){
     const bb=JP_COAST_BB[k];
     if(bb[1]<mnLo||bb[0]>mxLo||bb[3]<mnLa||bb[2]>mxLa)continue;
@@ -1534,7 +1540,7 @@ function drawMap(){
     ctx.beginPath();
     for(let i=0;i<r.length;i+=2){const x=X(r[i]),y=Y(r[i+1]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
     ctx.closePath();
-    ctx.fillStyle='#42583c';ctx.fill();
+    ctx.fillStyle=C.land;ctx.fill();
     ctx.stroke();
   }
 
@@ -1549,8 +1555,8 @@ function drawMap(){
     const box={x1:lx-3,y1:ly-11,x2:lx+tw+3,y2:ly+3};
     if(!primary&&overlaps(box))return;
     placed.push(box);
-    ctx.fillStyle='rgba(7,20,32,.85)';ctx.fillRect(box.x1,box.y1,box.x2-box.x1,box.y2-box.y1);
-    ctx.fillStyle=primary?'#f5b54a':'#a8cbdd';
+    ctx.fillStyle=hexA(C.bg,.85);ctx.fillRect(box.x1,box.y1,box.x2-box.x1,box.y2-box.y1);
+    ctx.fillStyle=primary?C.amber:C.mapLabelOther;
     ctx.fillText(nm,lx,ly);
   }
 
@@ -1562,17 +1568,17 @@ function drawMap(){
   others.forEach(s=>{
     const x=X(s.lon), y=Y(s.lat);
     ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);
-    ctx.fillStyle='#5a86a0';ctx.fill();
+    ctx.fillStyle=C.otherDot;ctx.fill();
     drawLabel(s.name,x,y,false);
   });
 
   const x=X(port.lon), y=Y(port.lat);
   ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);
-  ctx.strokeStyle='rgba(245,181,74,.35)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.strokeStyle=hexA(C.amber,.35);ctx.lineWidth=1.5;ctx.stroke();
   ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);
-  ctx.strokeStyle='rgba(245,181,74,.75)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.strokeStyle=hexA(C.amber,.75);ctx.lineWidth=1.5;ctx.stroke();
   ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);
-  ctx.fillStyle='#f5b54a';ctx.fill();
+  ctx.fillStyle=C.amber;ctx.fill();
 }
 $('mapZoomIn').addEventListener('click',()=>{
   if(mapZoomLevel<MAP_ZOOM_SCALES.length-1){mapZoomLevel++;drawMap();}
@@ -1771,31 +1777,27 @@ $('paywallRestore').addEventListener('click',()=>{
   }).catch(()=>alert('復元に失敗しました')).finally(()=>{btn.disabled=false;btn.textContent='購入を復元';});
 });
 
-/* ===== 潮位/潮流 モード切替 ===== */
-function applyMode(){
-  const isCurrent=appMode==='current';
-  $('modeTideBtn').classList.toggle('active', !isCurrent);
-  $('modeCurrentBtn').classList.toggle('active', isCurrent);
-  $('tideSelectors').style.display=isCurrent?'none':'';
-  $('heightUnit').textContent=isCurrent?'kn':'cm';
-  $('heightLabel').textContent=isCurrent?'現在の潮流':'現在の潮位';
-  $('hiTitle').textContent=isCurrent?'上げ潮最強':'満潮';
-  $('loTitle').textContent=isCurrent?'下げ潮最強':'干潮';
-  if(isCurrent){
-    savedTidePort=port;
-    port=KURUSHIMA_CURRENT;
-  }else if(savedTidePort){
-    port=savedTidePort;
-  }
-  mapZoomLevel=0;
-  render();
-  drawMap();
+/* ===== 表示テーマ (屋外・日差しの中でも見やすいライト表示) ===== */
+function applyTheme(mode){
+  document.documentElement.dataset.theme=mode;
+  $('themeBtn').textContent=mode==='light'?'ダーク表示に切替':'ライト表示に切替';
 }
-$('modeTideBtn').addEventListener('click',()=>{ if(appMode!=='level'){appMode='level';applyMode();} });
-$('modeCurrentBtn').addEventListener('click',()=>{ if(appMode!=='current'){appMode='current';applyMode();} });
+function initTheme(){
+  let mode='dark';
+  try{mode=localStorage.getItem('tide_theme')||'dark';}catch(e){}
+  applyTheme(mode);
+}
+$('themeBtn').addEventListener('click',()=>{
+  const next=document.documentElement.dataset.theme==='light'?'dark':'light';
+  try{localStorage.setItem('tide_theme',next);}catch(e){}
+  applyTheme(next);
+  if(typeof render==='function')render();
+  if(typeof drawMap==='function')drawMap();
+});
 
 /* ===== 初期化 ===== */
 (function init(){
+  initTheme();
   fillRegions();
   let saved=null;
   try{saved=JSON.parse(localStorage.getItem('tide_st'));}catch(e){}

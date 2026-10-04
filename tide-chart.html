@@ -96,7 +96,7 @@ canvas{width:100%;display:block}
 #cv{touch-action:pan-y;cursor:grab}
 #cv:active{cursor:grabbing}
 .mapbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px;margin-bottom:12px;position:relative}
-#mapCv{width:100%;display:block;border-radius:10px;cursor:pointer;touch-action:manipulation}
+#mapCv{width:100%;display:block;border-radius:10px;cursor:grab;touch-action:none}
 .mapZoom{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px}
 .mapZoom button{
   width:32px;height:32px;border-radius:8px;border:1px solid var(--line);
@@ -1077,7 +1077,7 @@ function selectPort(){
   if(!port){goDefault();return;}
   $('delBtn').style.display=(port.custom&&!port.kt&&$('regionSel').value==='my')?'inline-block':'none';
   localStorage.setItem('tide_st', JSON.stringify([$('regionSel').value,$('prefSel').value,port.name]));
-  mapZoomLevel=0;
+  mapZoomLevel=0; mapPanLa=0; mapPanLo=0;
   render();
   drawMap();
 }
@@ -1489,6 +1489,7 @@ const REGION_BOX={
   '沖縄':[24.0,27.0,122.8,128.4]
 };
 let mapZoomLevel=0;
+let mapPanLa=0, mapPanLo=0;  // 地図をドラッグした移動量(度)。地点を選び直すと0に戻る
 const MAP_ZOOM_SCALES=[1,1.8,3,5,8,13,21];
 /* 地図の表示・タップ判定は、選択肢(listFor)と同じKTを起点にする(STATIONSは別名義のことがあるため) */
 const MAP_POINTS=KT.map(r=>({pref:r[0],name:r[1],lat:r[2],lon:r[3]}));
@@ -1507,6 +1508,8 @@ function mapBox(zoomLevel){
     mnLa=port.lat-spanLa/2; mxLa=port.lat+spanLa/2;
     mnLo=port.lon-spanLo/2; mxLo=port.lon+spanLo/2;
   }
+  /* ドラッグで動かした分(度)だけ表示枠をずらす */
+  mnLa+=mapPanLa; mxLa+=mapPanLa; mnLo+=mapPanLo; mxLo+=mapPanLo;
   return [mnLa,mxLa,mnLo,mxLo];
 }
 function drawMap(){
@@ -1584,11 +1587,39 @@ $('mapZoomIn').addEventListener('click',()=>{
   if(mapZoomLevel<MAP_ZOOM_SCALES.length-1){mapZoomLevel++;drawMap();}
 });
 $('mapZoomOut').addEventListener('click',()=>{
-  if(mapZoomLevel>0){mapZoomLevel--;drawMap();}
+  if(mapZoomLevel>0){mapZoomLevel--;if(mapZoomLevel===0){mapPanLa=0;mapPanLo=0;}drawMap();}
 });
+
+/* 地図をドラッグ(スワイプ)して表示位置を動かす。指の動きに地図が追従する */
+let mapDrag=null, mapDragMoved=false, mapRaf=0;
+mapCv.addEventListener('pointerdown',e=>{
+  if(!port)return;
+  const W=mapCv.clientWidth||520, H=200;
+  const [mnLa,mxLa,mnLo,mxLo]=mapBox(mapZoomLevel);
+  const kx=Math.cos((mnLa+mxLa)/2*Math.PI/180);
+  const sc=Math.min((W-16)/((mxLo-mnLo)*kx),(H-16)/(mxLa-mnLa));
+  mapDrag={x:e.clientX,y:e.clientY,la:mapPanLa,lo:mapPanLo,kx,sc};
+  mapDragMoved=false;
+  try{mapCv.setPointerCapture(e.pointerId);}catch(_){}
+});
+mapCv.addEventListener('pointermove',e=>{
+  if(!mapDrag)return;
+  const dx=e.clientX-mapDrag.x, dy=e.clientY-mapDrag.y;
+  if(!mapDragMoved&&Math.hypot(dx,dy)>5)mapDragMoved=true;
+  if(!mapDragMoved)return;
+  const lim=(v,a,b)=>Math.max(a,Math.min(b,v));
+  /* 日本から大きく外れないよう移動量を制限 */
+  mapPanLo=lim(mapDrag.lo-dx/(mapDrag.kx*mapDrag.sc),-25,25);
+  mapPanLa=lim(mapDrag.la+dy/mapDrag.sc,-15,15);
+  if(!mapRaf)mapRaf=requestAnimationFrame(()=>{mapRaf=0;drawMap();});
+});
+function endMapDrag(){mapDrag=null;}
+mapCv.addEventListener('pointerup',endMapDrag);
+mapCv.addEventListener('pointercancel',endMapDrag);
 
 /* 地図上の地点をタップしたら、その地点に切り替える */
 mapCv.addEventListener('click',e=>{
+  if(mapDragMoved){mapDragMoved=false;return;}  // ドラッグ後は地点選択しない
   if(!port)return;
   const W=mapCv.clientWidth||520, H=200;
   const [mnLa,mxLa,mnLo,mxLo]=mapBox(mapZoomLevel);

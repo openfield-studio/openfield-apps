@@ -95,6 +95,17 @@ select{
 canvas{width:100%;display:block}
 #cv{touch-action:pan-y;cursor:grab}
 #cv:active{cursor:grabbing}
+.printBtn{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--text);font-size:15px;font-weight:600;padding:12px 0;margin:0 0 12px;cursor:pointer}
+.printBtn:active{background:var(--panel2)}
+#printGo{background:var(--water);color:var(--cyan);border-color:var(--waterLine);font-weight:600}
+#printPreview{display:none;position:fixed;inset:0;z-index:60;background:#6b7580;flex-direction:column}
+.ppBar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line)}
+.ppBar span{flex:1;text-align:center;font-size:13px;color:var(--dim)}
+.ppBar button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;font-size:14px;font-weight:600;padding:8px 14px;cursor:pointer}
+#ppPrint{background:var(--water);color:var(--cyan);border-color:var(--waterLine)}
+.ppBody{flex:1;overflow:auto;padding:8px 0}
+#ppWrap{margin:0 auto;position:relative;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+#ppFrame{position:absolute;left:0;top:0;width:794px;border:0;background:#fff;transform-origin:0 0}
 .mapbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px;margin-bottom:12px;position:relative}
 #mapCv{width:100%;display:block;border-radius:10px;cursor:grab;touch-action:none}
 .mapZoom{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px}
@@ -255,6 +266,38 @@ canvas{width:100%;display:block}
   </div>
 </div>
 
+<div class="modal" id="printModal">
+  <h2>潮位表を印刷</h2>
+  <div class="desc" id="printDesc"></div>
+  <label>開始日</label>
+  <input type="date" id="printStart">
+  <label>期間</label>
+  <select id="printSpan">
+    <option value="1">1日</option>
+    <option value="3">3日</option>
+    <option value="6">6日</option>
+    <option value="15">15日</option>
+  </select>
+  <label>レイアウト</label>
+  <select id="printLayout">
+    <option value="all">全て1枚に並べる</option>
+    <option value="each">1日1枚（日数＝枚数）</option>
+  </select>
+  <div class="btns">
+    <button id="printCancel">キャンセル</button>
+    <button id="printGo">印刷/プレビュー</button>
+  </div>
+</div>
+
+<div id="printPreview">
+  <div class="ppBar">
+    <button id="ppClose">閉じる</button>
+    <span id="ppInfo"></span>
+    <button id="ppPrint">印刷</button>
+  </div>
+  <div class="ppBody" id="ppBody"><div id="ppWrap"><iframe id="ppFrame"></iframe></div></div>
+</div>
+
 <div class="mapbox">
   <canvas id="mapCv" height="200"></canvas>
   <div class="mapZoom">
@@ -303,6 +346,8 @@ canvas{width:100%;display:block}
   <div class="card hi"><h3 id="hiTitle">満潮</h3><div id="hiList"></div></div>
   <div class="card lo"><h3 id="loTitle">干潮</h3><div id="loList"></div></div>
 </div>
+
+<button id="printBtn" class="printBtn">印刷（潮位表）</button>
 
 <div class="alarmbox" id="alarmBox"></div>
 
@@ -1114,7 +1159,7 @@ $('addBtn').addEventListener('click',()=>{
   modalShow(true);
 });
 $('mCancel').addEventListener('click',()=>modalShow(false));
-$('modalBg').addEventListener('click',()=>{modalShow(false);alarmModalShow(false);});
+$('modalBg').addEventListener('click',()=>{modalShow(false);alarmModalShow(false);closePrint();});
 $('mSave').addEventListener('click',()=>{
   const name=$('mName').value.trim();
   if(!name){alert('地点名を入れて');return;}
@@ -1354,7 +1399,7 @@ function drawGraph(cur,curH){
     const midnight=d.getHours()===0;
     ctx.strokeStyle=midnight?C.gridMajor:C.gridMinor;
     ctx.lineWidth=midnight?1.5:1;
-    ctx.beginPath();ctx.moveTo(x,padT);ctx.lineTo(x,H-padB);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,padT);ctx.lineTo(x,H-18);ctx.stroke();  // 時刻の数字のすぐ上まで
     if(d.getHours()%6===0){
       ctx.fillStyle=midnight?C.axisHi:C.axisDim;
       ctx.fillText(midnight?(d.getMonth()+1)+'/'+d.getDate():fmt2(d.getHours()),x,H-8);
@@ -1512,6 +1557,46 @@ function mapBox(zoomLevel){
   mnLa+=mapPanLa; mxLa+=mapPanLa; mnLo+=mapPanLo; mxLo+=mapPanLo;
   return [mnLa,mxLa,mnLo,mxLo];
 }
+
+/* ===== 背景地図: 国土地理院「色別標高図」タイル =====
+   通信できない/読み込み前は、内蔵の海岸線(JP_COAST)がそのまま見える。 */
+const TILE_URL='https://cyberjapandata.gsi.go.jp/xyz/relief/{z}/{x}/{y}.png';
+const TILE_MAXZ=15, tileCache=new Map();
+let tileRaf=0;
+function tileAgain(){ if(!tileRaf)tileRaf=requestAnimationFrame(()=>{tileRaf=0;drawMap();}); }
+function tileImg(z,x,y){
+  const k=z+'/'+x+'/'+y;
+  let t=tileCache.get(k);
+  if(!t){
+    if(tileCache.size>400)tileCache.delete(tileCache.keys().next().value);
+    const im=new Image();
+    t={im,ok:false};
+    im.onload=()=>{t.ok=true;tileAgain();};
+    im.src=TILE_URL.replace('{z}',z).replace('{x}',x).replace('{y}',y);
+    tileCache.set(k,t);
+  }
+  return t;
+}
+/* 表示範囲(緯度経度)に合わせてタイルを描く。描けたタイルが1枚でもあればtrue */
+function drawTiles(ctx,mnLa,mxLa,mnLo,mxLo,X,Y,degPerPx){
+  const z=Math.max(4,Math.min(TILE_MAXZ,Math.round(Math.log2(360/(256*degPerPx)))+1));
+  const n=2**z, rad=Math.PI/180;
+  const lon2x=lo=>Math.floor((lo+180)/360*n);
+  const lat2y=la=>Math.floor((1-Math.log(Math.tan(la*rad)+1/Math.cos(la*rad))/Math.PI)/2*n);
+  const x0=lon2x(mnLo),x1=lon2x(mxLo),y0=lat2y(mxLa),y1=lat2y(mnLa);
+  if((x1-x0+1)*(y1-y0+1)>150)return false;
+  const tileLon=x=>x/n*360-180;
+  const tileLat=y=>Math.atan(Math.sinh(Math.PI*(1-2*y/n)))/rad;
+  let drawn=false;
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    const t=tileImg(z,x,y);
+    if(!t.ok)continue;
+    const L=X(tileLon(x)),R=X(tileLon(x+1)),T=Y(tileLat(y)),B=Y(tileLat(y+1));
+    ctx.drawImage(t.im,L,T,R-L+0.6,B-T+0.6);
+    drawn=true;
+  }
+  return drawn;
+}
 function drawMap(){
   if(!mapCv||!port)return;
   const dpr=window.devicePixelRatio||1;
@@ -1545,6 +1630,13 @@ function drawMap(){
     ctx.closePath();
     ctx.fillStyle=C.land;ctx.fill();
     ctx.stroke();
+  }
+
+  /* 色別標高図を重ねる(読み込めた分だけ。海上で通信できない時は上の海岸線のまま) */
+  const tiled=drawTiles(ctx,mnLa-offY/sc,mxLa+offY/sc,mnLo-offX/(kx*sc),mxLo+offX/(kx*sc),X,Y,1/(kx*sc));
+  if(tiled){
+    ctx.font='9px sans-serif';ctx.fillStyle='rgba(255,255,255,.85)';ctx.textAlign='left';
+    ctx.fillText('地理院タイル（色別標高図）',6,H-5);
   }
 
   /* 表示範囲内の検潮所をすべて表示。文字が被る場合はラベルのみ間引く */
@@ -1640,6 +1732,246 @@ mapCv.addEventListener('click',e=>{
   if(best&&best.name!==port.name){
     goTo(AREA_OF[best.pref], best.pref, best.name);
   }
+});
+
+/* ===== 印刷 (潮位表: 場所を最上部、各グラフの上に日付、下に満干潮と基準ライン通過時刻) ===== */
+function esc(t){return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function printDayData(p,dayStart,lineV){
+  const {his,los}=findHiLo(p,dayStart);
+  const pts=[];
+  for(let m=0;m<=1440;m+=10)pts.push({m,v:tideHeight(p,new Date(dayStart.getTime()+m*60000))});
+  const cross=[], segs=[];
+  if(lineV!==null){
+    /* 前日〜翌日まで見て、通過点と「通過〜次の通過」の時間(基準より上/下にいる時間)を求める */
+    const all=[];
+    let prev=null;
+    for(let m=-1440;m<=2880;m+=5){
+      const v=tideHeight(p,new Date(dayStart.getTime()+m*60000))-lineV;
+      if(prev&&((prev.v<0&&v>=0)||(prev.v>0&&v<=0))){
+        const f=prev.v/(prev.v-v);
+        all.push({m:prev.m+f*5,up:v>prev.v});
+      }
+      prev={m,v};
+    }
+    all.forEach(c=>{ if(c.m>=0&&c.m<1440)cross.push({t:new Date(dayStart.getTime()+c.m*60000),up:c.up}); });
+    for(let i=0;i+1<all.length;i++){
+      const a=all[i],b=all[i+1],mid=(a.m+b.m)/2;
+      if(mid>=0&&mid<=1440)segs.push({mid,dur:b.m-a.m,a:a.m,b:b.m,above:a.up});
+    }
+  }
+  return {his,los,pts,cross,segs};
+}
+function printGraphSvg(d,dayStart,vMin,vMax,lineV,o){
+  /* o={W,H,fs}: 1単位=0.25mm。満潮・干潮・基準ライン通過の時刻はグラフ内に書き込む */
+  const W=o.W,H=o.H,fs=o.fs,dense=o.dense,hd0=o.fs*.38;
+  const L=fs*2.5,R=fs*0.6,T=fs*1.7,B=fs*2.5;
+  const X=m=>L+(W-L-R)*m/1440, Y=v=>T+(H-T-B)*(1-(v-vMin)/(vMax-vMin));
+  const sw=fs/10;
+  let g='';
+  let grid='', axis='';
+  const step=H>=300?50:100;
+  for(let v=Math.ceil(vMin/step)*step;v<=vMax;v+=step){
+    grid+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="#000" stroke-opacity=".28" stroke-width="'+sw*.6+'"/>';
+    axis+='<text x="'+(L-fs*.3)+'" y="'+(Y(v)+fs*.35)+'" font-size="'+fs+'" text-anchor="end" fill="#444">'+v+'</text>';
+  }
+  /* 縦ラインは 0・6・12・18・24 時だけ */
+  for(let h=0;h<=24;h+=6){
+    grid+='<line x1="'+X(h*60)+'" x2="'+X(h*60)+'" y1="'+T+'" y2="'+(H-fs*1.35)+'" stroke="#000" stroke-opacity="'+(h%12===0?.5:.32)+'" stroke-width="'+sw*.8+'"/>';
+    axis+='<text x="'+X(h*60)+'" y="'+(H-fs*.5)+'" font-size="'+fs+'" text-anchor="middle" fill="#444">'+h+'</text>';
+  }
+  const path=d.pts.map((q,i)=>(i?'L':'M')+X(q.m).toFixed(1)+' '+Y(q.v).toFixed(1)).join('');
+  /* 重ね順: 塗り → 曲線 → 縦横の目盛り線(グラフの前) → 基準線 → 点と時刻 → 軸の数字(最前面) */
+  g+='<path d="'+path+'L'+X(1440)+' '+(H-B)+'L'+X(0)+' '+(H-B)+'Z" fill="#d6e9f4" stroke="none"/>'
+    +'<path d="'+path+'" fill="none" stroke="#0b5c8a" stroke-width="'+sw*1.8+'"/>'
+    +grid;
+  if(lineV!==null&&lineV>=vMin&&lineV<=vMax){
+    g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(lineV)+'" y2="'+Y(lineV)+'" stroke="#c0392b" stroke-width="'+sw*1.3+'" stroke-dasharray="'+fs*.7+' '+fs*.4+'"/>';
+  }
+  /* 文字が重ならないよう、置いた文字の範囲を覚えて、ぶつかる場所は避ける */
+  const boxes=[];
+  const tw=str=>str.length*fs*0.6;
+  const place=(px,y1,y2,w,anc)=>{
+    let x1=anc==='start'?px:anc==='end'?px-w:px-w/2;
+    x1=Math.max(L,Math.min(W-R-w,x1));
+    const box={x1,x2:x1+w,y1,y2};
+    if(boxes.some(o=>!(box.x2<o.x1||box.x1>o.x2||box.y2<o.y1||box.y1>o.y2)))return null;
+    boxes.push(box);
+    return {x:anc==='start'?x1:anc==='end'?x1+w:x1+w/2,anc};
+  };
+  const placeLine=(px,base,str,anc)=>place(px,base-fs*.85,base+fs*.2,tw(str),anc);
+  /* 満潮・干潮: 点の上(下)に「時:分/潮位cm」を1行で書く */
+  const hm=t=>t.getHours()+':'+fmt2(t.getMinutes());
+  const label=(x,m,v,t,up)=>{
+    const px=X(m), py=Y(v), tm=hm(t), cm=String(Math.round(v));
+    const w=(tm.length+1+cm.length)*fs*0.6+fs*1.1;
+    const base=up?py-fs*.7:py+fs*1.3;
+    const r=place(px,up?py-fs*1.6:py+fs*.4,up?py-fs*.45:py+fs*1.5,w,'middle');
+    return '<circle cx="'+px+'" cy="'+py+'" r="'+fs*.28+'" fill="#0b5c8a"/>'
+      +(r?'<text x="'+r.x+'" y="'+base+'" font-size="'+fs+'" font-weight="700" text-anchor="'+r.anc+'" fill="#073f60">'+tm+'/'+cm
+        +'<tspan font-size="'+fs*.78+'" font-weight="400">cm</tspan></text>':'');
+  };
+  d.his.forEach(x=>{g+=label(x,(x.t-dayStart)/60000,x.v,x.t,true);});
+  d.los.forEach(x=>{g+=label(x,(x.t-dayStart)/60000,x.v,x.t,false);});
+  /* 基準ライン通過: 赤い○に矢印の先が刺さる形で描く。
+     上り=○の下から上向きの矢印、下り=○の上から下向きの矢印。時刻は矢印の横 */
+  d.cross.forEach(c=>{
+    const px=X((c.t-dayStart)/60000), py=Y(lineV), tm=hm(c.t);
+    const r=fs*.3, La=fs*1.7, hd=fs*.38, gap=fs*.3, tW=tw(tm), sgn=c.up?1:-1;
+    const tipY=py+sgn*r, tailY=py+sgn*(r+La);          // 上り: ○の下側 / 下り: ○の上側
+    const tBase=c.up?tailY-fs*.05:tailY+fs*.9, y1=tBase-fs*.85, y2=tBase+fs*.2;   // 時刻の文字の高さ範囲
+    boxes.push({x1:px-hd,x2:px+hd,y1:Math.min(py,tailY),y2:Math.max(py,tailY)});    // 矢印そのもの
+    /* 時刻は 下り↓の左、上り↑の右 に置く。ぶつかるなら反対側へ */
+    let side='', pl=null;
+    const tryR=()=>{if(!pl&&px+hd+gap+tW<=W-R){pl=place(px+hd+gap,y1,y2,tW,'start');if(pl)side='R';}};
+    const tryL=()=>{if(!pl&&px-hd-gap-tW>=L){pl=place(px-hd-gap,y1,y2,tW,'end');if(pl)side='L';}};
+    if(c.up){tryR();tryL();}else{tryL();tryR();}
+    g+='<circle cx="'+px+'" cy="'+py+'" r="'+r+'" fill="#fff" stroke="#c0392b" stroke-width="'+sw*1.3+'"/>'
+      +'<path d="M'+px+' '+tailY+'L'+px+' '+(tipY+sgn*sw*.5)
+      +'M'+(px-hd)+' '+(tipY+sgn*hd*1.1)+'L'+px+' '+tipY+'L'+(px+hd)+' '+(tipY+sgn*hd*1.1)
+      +'" fill="none" stroke="#c0392b" stroke-width="'+fs*.16+'" stroke-linecap="round" stroke-linejoin="round"/>';
+    if(pl){
+      const tx=side==='R'?px+hd+gap:px-hd-gap, base=tBase;
+      g+='<text x="'+tx+'" y="'+base+'" font-size="'+fs+'" font-weight="700" text-anchor="'+(side==='R'?'start':'end')+'" fill="#c0392b">'+tm+'</text>';
+    }else{
+      /* 横に置けない時は、矢印の根元の先(上りは下、下りは上)に時刻を置く */
+      const base=c.up?tailY+fs*1.05:tailY-fs*.3;
+      const q=place(px,base-fs*.85,base+fs*.2,tW,'middle');
+      if(q)g+='<text x="'+q.x+'" y="'+base+'" font-size="'+fs+'" font-weight="700" text-anchor="middle" fill="#c0392b">'+tm+'</text>';
+    }
+  });
+  /* 基準ライン〜基準ラインの時間: 通過点の真ん中に □ で囲んで「時:分」 (基準線の上にいる時間/下にいる時間) */
+  if(lineV!==null){
+    const py=Y(lineV);
+    d.segs.forEach(sg=>{
+      if(sg.above)return;   // 基準より下にいる時間だけ表示(基準を超えている時間は出さない)
+      const px=X(sg.mid), hh=Math.floor(sg.dur/60), mm=Math.round(sg.dur-hh*60);
+      const H2=mm===60?hh+1:hh, M2=mm===60?0:mm;
+      const txt=(H2>0?H2+'時間':'')+M2+'分';     // 例: 5時間31分
+      const units=txt.replace(/[^0-9]/g,'').length*0.6+txt.replace(/[0-9]/g,'').length;
+      /* 両隣の通過点(矢印)の間に収まる大きさに文字を縮める */
+      const xa=Math.max(L,X(sg.a)), xb=Math.min(W-R,X(sg.b));
+      const margin=hd0*1.3;
+      const avail=(xb-xa)-(X(sg.a)>=L?margin:0)-(X(sg.b)<=W-R?margin:0);
+      const fz=Math.min(fs*.95,avail/(units+.7));
+      if(fz<fs*.55)return;
+      const w=units*fz+fz*.7, h=fz*1.3;
+      const q=place(px,py-h/2,py+h/2,w,'middle');
+      if(!q)return;
+      g+='<rect x="'+(q.x-w/2)+'" y="'+(py-h/2)+'" width="'+w+'" height="'+h+'" rx="'+fz*.15+'" fill="#fff" stroke="#c0392b" stroke-width="'+sw*1.1+'"/>'
+        +'<text x="'+q.x+'" y="'+(py+fz*.35)+'" font-size="'+fz+'" font-weight="700" text-anchor="middle" fill="#c0392b">'+txt+'</text>';
+    });
+  }
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" xmlns="http://www.w3.org/2000/svg">'+g+axis+'</svg>';
+}
+function buildPrintHtml(startDate,span,layout){
+  const lineV=($('lineCm').value===''||$('lineCm').disabled)?null:+$('lineCm').value;
+  const days=[];
+  for(let i=0;i<span;i++){
+    const ds=new Date(startDate.getFullYear(),startDate.getMonth(),startDate.getDate()+i);
+    days.push({ds,d:printDayData(port,ds,lineV)});
+  }
+  let lo=1e9,hi=-1e9;
+  days.forEach(x=>x.d.pts.forEach(q=>{if(q.v<lo)lo=q.v;if(q.v>hi)hi=q.v;}));
+  const vMin=Math.floor((lo-5)/50)*50, vMax=Math.ceil((hi+5)/50)*50;
+  /* 全て1枚: 日数に応じて列数とグラフの大きさを決め、A4縦1枚に収める (1単位=0.25mm) */
+  /* 期間ごとに列数・グラフの大きさ・文字の大きさを変える(1単位=0.25mm)。
+     日数が多いほど1枚に詰める必要があるので文字は小さくなる */
+  const one=layout==='each'||span===1;
+  const P=one?{cols:1,H:780,fs:24}
+    :span<=3?{cols:2,H:400,fs:18}
+    :span<=6?{cols:2,H:280,fs:16}
+    :{cols:3,H:155,fs:12.5};
+  if(window.__H)P.H=window.__H;
+  const cols=P.cols;
+  const cellMm={1:190,2:93,3:61}[cols];
+  const gO={W:(cellMm-4)*4,H:P.H,fs:P.fs,dense:!one&&span>=15};
+  const big=one||span<=6, dense=!one&&span>=15;
+  const fmtD=ds=>(ds.getMonth()+1)+'/'+ds.getDate()+'（'+'日月火水木金土'[ds.getDay()]+'）';
+  const cell=x=>{
+    const age=moonAge(new Date(x.ds.getTime()+12*3600000));
+    const shio=shioName(age);
+    return '<section class="day"><div class="dh"><span class="dd">'+fmtD(x.ds)+'</span>'
+      +'<span class="ds">'+shio+'　月齢'+age.toFixed(1)+'</span></div>'
+      +printGraphSvg(x.d,x.ds,vMin,vMax,lineV,gO)+'</section>';
+  };
+  const last=days[days.length-1].ds;
+  const range=span===1?fmtD(startDate):fmtD(startDate)+' ～ '+fmtD(last);
+  const base=port.showBase?'（'+port.refName+'の値で補正）':'';
+  const head='<header class="top"><h1>'+esc(port.pref&&port.pref!=='my'?port.pref+'　':'')+esc(port.name)+esc(base)+'</h1>'
+    +'<div class="sub">'+startDate.getFullYear()+'年　'+range+'　潮位表（単位 cm）'
+    +(lineV!==null?'　／　基準潮位ライン '+lineV+'cm（赤の点線）':'')+'</div>'
+    +'<div class="leg">● 満潮・干潮（時刻/潮位）'+(lineV!==null?'　○ 基準ライン通過（矢印の向き＝上り／下り）　□ 基準より潮位が低い時間':'')+'　縦線は0・6・12・18・24時</div></header>';
+  const foot='<footer>※ 気象庁公表の調和定数による推算値です。気象条件による変動は含みません。航海目的には海上保安庁刊行の潮汐表をご使用ください。　作業潮位表</footer>';
+  let body;
+  if(layout==='each'){
+    body=days.map(x=>'<div class="page">'+head+cell(x)+foot+'</div>').join('');
+  }else{
+    body='<div class="page">'+head+'<div class="grid">'+days.map(cell).join('')+'</div>'+foot+'</div>';
+  }
+  const css='@page{size:A4;margin:10mm}*{box-sizing:border-box}body{font-family:sans-serif;color:#111;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.page{page-break-after:always}.page:last-child{page-break-after:auto}'
+    +'.top h1{font-size:15pt;margin:0 0 1mm;border-bottom:2px solid #0b5c8a;padding-bottom:.8mm}.top .sub{font-size:9pt;color:#333;margin-bottom:.5mm}.top .leg{font-size:7.5pt;color:#555;margin-bottom:2mm}'
+    +'.grid{display:grid;grid-template-columns:repeat('+cols+',1fr);gap:'+(dense?'1.5mm 2mm':'2mm 3mm')+'}'
+    +'.day{break-inside:avoid;border:1px solid #bbb;border-radius:1.5mm;padding:'+(dense?'.6mm 1.2mm':'.8mm 1.5mm')+'}'
+    +'.dh{display:flex;justify-content:space-between;align-items:baseline}'
+    +'.dd{font-weight:700;line-height:1.15;font-size:'+(span===1||layout==='each'?'14pt':big?'11pt':dense?'9pt':'9pt')+'}.ds{font-size:'+(span===1||layout==='each'?'10pt':big?'9pt':dense?'7.5pt':'8pt')+';color:#444}'
+    +'footer{margin-top:3mm;font-size:7.5pt;color:#555}';
+  return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>潮位表 '+esc(port.name)+'</title><style>'+css+'</style></head><body>'+body+'</body></html>';
+}
+function doPrint(html,title){
+  const plugin=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.PrintHtml;
+  if(plugin&&plugin.print){
+    return plugin.print({html,title}).catch(e=>alert('印刷を開始できませんでした: '+((e&&e.message)||e)));
+  }
+  const f=document.createElement('iframe');
+  f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(f);
+  f.contentDocument.open();f.contentDocument.write(html);f.contentDocument.close();
+  setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),2000);},300);
+}
+function openPrint(){
+  const cur=new Date(baseNow.getTime()+offsetMin*60000);
+  $('printStart').value=cur.getFullYear()+'-'+fmt2(cur.getMonth()+1)+'-'+fmt2(cur.getDate());
+  $('printDesc').textContent=port.name+' の潮位表を印刷します。プレビューで確認してから印刷（PDF保存も可）できます。';
+  $('modalBg').style.display='block';$('printModal').style.display='block';
+}
+function closePrint(){$('modalBg').style.display='none';$('printModal').style.display='none';}
+$('printBtn').addEventListener('click',()=>{if(port)openPrint();});
+$('printCancel').addEventListener('click',closePrint);
+let ppHtml='';
+function fitPreview(){
+  const f=$('ppFrame'), body=$('ppBody');
+  let h=0;
+  try{h=f.contentDocument.documentElement.scrollHeight;}catch(e){}
+  if(!h)return;
+  const sc=Math.min(1,(body.clientWidth-16)/794);
+  f.style.height=h+'px';
+  f.style.transform='scale('+sc+')';
+  $('ppWrap').style.width=(794*sc)+'px';
+  $('ppWrap').style.height=(h*sc)+'px';
+}
+function showPreview(html){
+  ppHtml=html;
+  /* 画面表示用: 用紙の余白と、ページの区切り線を足す(印刷物には影響しない) */
+  const view=html.replace('</style>','body{padding:10mm}.page{padding-bottom:6mm;margin-bottom:6mm;border-bottom:2px dashed #aab}.page:last-child{border-bottom:0;margin-bottom:0}</style>');
+  const f=$('ppFrame');
+  f.onload=()=>{fitPreview();setTimeout(fitPreview,300);};
+  f.srcdoc=view;
+  const pages=(html.match(/class="page"/g)||[]).length;
+  $('ppInfo').textContent='プレビュー（A4縦 '+pages+'枚）';
+  $('printPreview').style.display='flex';
+  $('ppBody').scrollTop=0;
+}
+function closePreview(){$('printPreview').style.display='none';$('ppFrame').srcdoc='';}
+window.addEventListener('resize',()=>{if($('printPreview').style.display==='flex')fitPreview();});
+$('ppClose').addEventListener('click',closePreview);
+$('ppPrint').addEventListener('click',()=>{doPrint(ppHtml,'潮位表_'+port.name);});
+$('printGo').addEventListener('click',()=>{
+  if(!$('printStart').value)return;
+  const [y,m,d]=$('printStart').value.split('-').map(Number);
+  const html=buildPrintHtml(new Date(y,m-1,d),+$('printSpan').value,$('printLayout').value);
+  closePrint();
+  showPreview(html);
 });
 
 /* ===== アラーム (基準潮位ライン交点の事前通知) ===== */

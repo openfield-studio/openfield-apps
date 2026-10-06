@@ -1122,7 +1122,11 @@ function selectPort(){
   if(!port){goDefault();return;}
   $('delBtn').style.display=(port.custom&&!port.kt&&$('regionSel').value==='my')?'inline-block':'none';
   localStorage.setItem('tide_st', JSON.stringify([$('regionSel').value,$('prefSel').value,port.name]));
-  mapZoomLevel=0; mapPanLa=0; mapPanLo=0;
+  if(mapKeepView){            // 地図のタップで選んだ時は、ズームも表示位置もそのまま
+    mapFixed=mapKeepView.slice(); mapPanLa=0; mapPanLo=0;
+  }else{
+    mapZoomLevel=0; mapPanLa=0; mapPanLo=0; mapFixed=null;
+  }
   render();
   drawMap();
 }
@@ -1534,11 +1538,14 @@ const REGION_BOX={
   '沖縄':[24.0,27.0,122.8,128.4]
 };
 let mapZoomLevel=0;
-let mapPanLa=0, mapPanLo=0;  // 地図をドラッグした移動量(度)。地点を選び直すと0に戻る
+let mapPanLa=0, mapPanLo=0;
+let mapFixed=null;     // 地図タップで地点を替えた時に、表示範囲を固定しておくための [minLat,maxLat,minLon,maxLon]
+var mapKeepView=null;  // 地点切替中だけ入る(selectPortが見る)  // 地図をドラッグした移動量(度)。地点を選び直すと0に戻る
 const MAP_ZOOM_SCALES=[1,1.8,3,5,8,13,21];
 /* 地図の表示・タップ判定は、選択肢(listFor)と同じKTを起点にする(STATIONSは別名義のことがあるため) */
 const MAP_POINTS=KT.map(r=>({pref:r[0],name:r[1],lat:r[2],lon:r[3]}));
 function mapBox(zoomLevel){
+  if(mapFixed)return [mapFixed[0]+mapPanLa,mapFixed[1]+mapPanLa,mapFixed[2]+mapPanLo,mapFixed[3]+mapPanLo];
   let mnLa,mxLa,mnLo,mxLo;
   const RB=REGION_BOX[$('regionSel').value];
   if(RB){[mnLa,mxLa,mnLo,mxLo]=RB;}
@@ -1676,10 +1683,10 @@ function drawMap(){
   ctx.fillStyle=C.amber;ctx.fill();
 }
 $('mapZoomIn').addEventListener('click',()=>{
-  if(mapZoomLevel<MAP_ZOOM_SCALES.length-1){mapZoomLevel++;drawMap();}
+  if(mapZoomLevel<MAP_ZOOM_SCALES.length-1){mapZoomLevel++;if(mapFixed){mapFixed=null;mapPanLa=0;mapPanLo=0;}drawMap();}
 });
 $('mapZoomOut').addEventListener('click',()=>{
-  if(mapZoomLevel>0){mapZoomLevel--;if(mapZoomLevel===0){mapPanLa=0;mapPanLo=0;}drawMap();}
+  if(mapZoomLevel>0){mapZoomLevel--;if(mapFixed){mapFixed=null;mapPanLa=0;mapPanLo=0;}if(mapZoomLevel===0){mapPanLa=0;mapPanLo=0;}drawMap();}
 });
 
 /* 地図をドラッグ(スワイプ)して表示位置を動かす。指の動きに地図が追従する */
@@ -1730,7 +1737,9 @@ mapCv.addEventListener('click',e=>{
     if(d<bd){bd=d;best=s;}
   });
   if(best&&best.name!==port.name){
-    goTo(AREA_OF[best.pref], best.pref, best.name);
+    mapKeepView=mapBox(mapZoomLevel);        // 今の表示範囲を覚えて、切替後もそのまま使う
+    try{ goTo(AREA_OF[best.pref], best.pref, best.name); }
+    finally{ mapKeepView=null; }
   }
 });
 

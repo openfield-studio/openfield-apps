@@ -1544,8 +1544,13 @@ var mapKeepView=null;  // 地点切替中だけ入る(selectPortが見る)  // �
 const MAP_ZOOM_SCALES=[1,1.8,3,5,8,13,21];
 /* 地図の表示・タップ判定は、選択肢(listFor)と同じKTを起点にする(STATIONSは別名義のことがあるため) */
 const MAP_POINTS=KT.map(r=>({pref:r[0],name:r[1],lat:r[2],lon:r[3]}));
+/* 表示範囲: ピンチ/ボタン/地点タップで固定した範囲(mapFixed)があればそれ、なければ地方枠から求める。ドラッグ分(mapPan)を足す */
 function mapBox(zoomLevel){
   if(mapFixed)return [mapFixed[0]+mapPanLa,mapFixed[1]+mapPanLa,mapFixed[2]+mapPanLo,mapFixed[3]+mapPanLo];
+  const b=mapBoxRaw(zoomLevel);
+  return [b[0]+mapPanLa,b[1]+mapPanLa,b[2]+mapPanLo,b[3]+mapPanLo];
+}
+function mapBoxRaw(zoomLevel){
   let mnLa,mxLa,mnLo,mxLo;
   const RB=REGION_BOX[$('regionSel').value];
   if(RB){[mnLa,mxLa,mnLo,mxLo]=RB;}
@@ -1560,9 +1565,34 @@ function mapBox(zoomLevel){
     mnLa=port.lat-spanLa/2; mxLa=port.lat+spanLa/2;
     mnLo=port.lon-spanLo/2; mxLo=port.lon+spanLo/2;
   }
-  /* ドラッグで動かした分(度)だけ表示枠をずらす */
-  mnLa+=mapPanLa; mxLa+=mapPanLa; mnLo+=mapPanLo; mxLo+=mapPanLo;
   return [mnLa,mxLa,mnLo,mxLo];
+}
+/* 表示範囲(box)から、中心・1度あたりのpx(sc)などを求める */
+function mapGeom(box){
+  const W=mapCv.clientWidth||520, H=200, pad=8;
+  const la0=(box[0]+box[1])/2, lo0=(box[2]+box[3])/2, kx=Math.cos(la0*Math.PI/180);
+  const sc=Math.min((W-2*pad)/((box[3]-box[2])*kx),(H-2*pad)/(box[1]-box[0]));
+  return {W,H,pad,la0,lo0,kx,sc};
+}
+/* 拡大の限界(標準の表示より少し広く〜かなり拡大まで) */
+function mapScaleLimits(){
+  const g=mapGeom(mapBoxRaw(0));
+  return {min:g.sc*0.5,max:g.sc*30};
+}
+/* 中心(la0,lo0)と倍率scから表示範囲を固定する */
+function setMapView(la0,lo0,sc,kx,W,H,pad){
+  const hLa=(H-2*pad)/sc/2, hLo=(W-2*pad)/(sc*kx)/2;
+  mapFixed=[la0-hLa,la0+hLa,lo0-hLo,lo0+hLo];
+  mapPanLa=0; mapPanLo=0;
+}
+/* 画面上の点(fx,fy)の下にある場所が、倍率f倍されたうえで(mx,my)に来るように表示を動かす。
+   ピンチ(2本指の拡大縮小＋移動)、ボタン、マウスホイールで共通に使う */
+function mapZoomAt(fx,fy,mx,my,f){
+  const g=mapGeom(mapBox(mapZoomLevel)), lim=mapScaleLimits();
+  const sc=Math.max(lim.min,Math.min(lim.max,g.sc*f));
+  const fLo=g.lo0+(fx-g.W/2)/(g.kx*g.sc), fLa=g.la0-(fy-g.H/2)/g.sc;
+  setMapView(fLa+(my-g.H/2)/sc, fLo-(mx-g.W/2)/(g.kx*sc), sc, g.kx, g.W, g.H, g.pad);
+  drawMap();
 }
 
 /* ===== 背景地図: 国土地理院「色別標高図」タイル =====
@@ -1616,12 +1646,13 @@ function drawMap(){
     mapLabelOther:cssv('--mapLabelOther'),amber:cssv('--amber'),bg:cssv('--bg')};
 
   const [mnLa,mxLa,mnLo,mxLo]=mapBox(mapZoomLevel);
-  $('mapZoomIn').disabled=mapZoomLevel>=MAP_ZOOM_SCALES.length-1;
-  $('mapZoomOut').disabled=mapZoomLevel<=0;
 
   const kx=Math.cos((mnLa+mxLa)/2*Math.PI/180);
   const sX=(mxLo-mnLo)*kx, sY=(mxLa-mnLa), pad=8;
   const sc=Math.min((W-2*pad)/sX,(H-2*pad)/sY);
+  const slim=mapScaleLimits();
+  $('mapZoomIn').disabled=sc>=slim.max*0.999;
+  $('mapZoomOut').disabled=sc<=slim.min*1.001;
   const offX=(W-sX*sc)/2, offY=(H-sY*sc)/2;
   const X=lon=>offX+(lon-mnLo)*kx*sc;
   const Y=lat=>offY+(mxLa-lat)*sc;
@@ -1683,25 +1714,50 @@ function drawMap(){
   ctx.fillStyle=C.amber;ctx.fill();
 }
 $('mapZoomIn').addEventListener('click',()=>{
-  if(mapZoomLevel<MAP_ZOOM_SCALES.length-1){mapZoomLevel++;if(mapFixed){mapFixed=null;mapPanLa=0;mapPanLo=0;}drawMap();}
+  const cx=(mapCv.clientWidth||520)/2; mapZoomAt(cx,100,cx,100,1.8);
 });
 $('mapZoomOut').addEventListener('click',()=>{
-  if(mapZoomLevel>0){mapZoomLevel--;if(mapFixed){mapFixed=null;mapPanLa=0;mapPanLo=0;}if(mapZoomLevel===0){mapPanLa=0;mapPanLo=0;}drawMap();}
+  const cx=(mapCv.clientWidth||520)/2; mapZoomAt(cx,100,cx,100,1/1.8);
 });
+/* マウスホイールでも拡大縮小(パソコンのブラウザ用) */
+mapCv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  mapZoomAt(e.offsetX,e.offsetY,e.offsetX,e.offsetY,e.deltaY<0?1.25:1/1.25);
+},{passive:false});
 
-/* 地図をドラッグ(スワイプ)して表示位置を動かす。指の動きに地図が追従する */
-let mapDrag=null, mapDragMoved=false, mapRaf=0;
+/* 地図を1本指でドラッグして動かし、2本指のピンチで拡大・縮小する。指の動きに地図が追従する */
+let mapDrag=null, mapDragMoved=false, mapRaf=0, mapPinch=null;
+const mapPtrs=new Map();
+function mapPt(e){const r=mapCv.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top,cx:e.clientX,cy:e.clientY};}
+function startMapDrag(pt){
+  const g=mapGeom(mapBox(mapZoomLevel));
+  mapDrag={x:pt.cx,y:pt.cy,la:mapPanLa,lo:mapPanLo,kx:g.kx,sc:g.sc};
+}
+function pinchState(){
+  const [a,b]=[...mapPtrs.values()];
+  return {d:Math.hypot(a.x-b.x,a.y-b.y)||1,mx:(a.x+b.x)/2,my:(a.y+b.y)/2};
+}
 mapCv.addEventListener('pointerdown',e=>{
   if(!port)return;
-  const W=mapCv.clientWidth||520, H=200;
-  const [mnLa,mxLa,mnLo,mxLo]=mapBox(mapZoomLevel);
-  const kx=Math.cos((mnLa+mxLa)/2*Math.PI/180);
-  const sc=Math.min((W-16)/((mxLo-mnLo)*kx),(H-16)/(mxLa-mnLa));
-  mapDrag={x:e.clientX,y:e.clientY,la:mapPanLa,lo:mapPanLo,kx,sc};
-  mapDragMoved=false;
+  mapPtrs.set(e.pointerId,mapPt(e));
   try{mapCv.setPointerCapture(e.pointerId);}catch(_){}
+  if(mapPtrs.size===1){
+    mapDragMoved=false;
+    startMapDrag(mapPtrs.get(e.pointerId));
+  }else if(mapPtrs.size===2){
+    mapDrag=null; mapDragMoved=true;     // 2本指になったらドラッグをやめてピンチ開始
+    mapPinch=pinchState();
+  }
 });
 mapCv.addEventListener('pointermove',e=>{
+  if(!mapPtrs.has(e.pointerId))return;
+  mapPtrs.set(e.pointerId,mapPt(e));
+  if(mapPinch&&mapPtrs.size>=2){
+    const n=pinchState();
+    mapZoomAt(mapPinch.mx,mapPinch.my,n.mx,n.my,n.d/mapPinch.d);
+    mapPinch=n;
+    return;
+  }
   if(!mapDrag)return;
   const dx=e.clientX-mapDrag.x, dy=e.clientY-mapDrag.y;
   if(!mapDragMoved&&Math.hypot(dx,dy)>5)mapDragMoved=true;
@@ -1712,9 +1768,18 @@ mapCv.addEventListener('pointermove',e=>{
   mapPanLa=lim(mapDrag.la+dy/mapDrag.sc,-15,15);
   if(!mapRaf)mapRaf=requestAnimationFrame(()=>{mapRaf=0;drawMap();});
 });
-function endMapDrag(){mapDrag=null;}
-mapCv.addEventListener('pointerup',endMapDrag);
-mapCv.addEventListener('pointercancel',endMapDrag);
+function endMapPtr(e){
+  mapPtrs.delete(e.pointerId);
+  if(mapPtrs.size<2)mapPinch=null;
+  if(mapPtrs.size===1){              // ピンチから1本指に戻った時は、残った指でそのままドラッグ継続
+    const rest=[...mapPtrs.values()][0];
+    startMapDrag(rest);
+  }else if(mapPtrs.size===0){
+    mapDrag=null;
+  }
+}
+mapCv.addEventListener('pointerup',endMapPtr);
+mapCv.addEventListener('pointercancel',endMapPtr);
 
 /* 地図上の地点をタップしたら、その地点に切り替える */
 mapCv.addEventListener('click',e=>{
